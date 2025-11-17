@@ -134,5 +134,5 @@ if st.button("Analyze"):
             st.write(f"- **Similarity Score:** {calculate_risk(r.score)}")
             st.markdown("---")
 
-st.info("Model: MiniLM-L6-v2 • Vector DB: Qdrant (Local) • Fully Offline • No OpenAI Used")
+st.info("Model: MiniLM-L6-v2 • Vector DB: Qdrant (Local) 
 
