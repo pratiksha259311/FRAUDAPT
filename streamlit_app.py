@@ -1,4 +1,3 @@
-streamlit_app.py
 import streamlit as st
 from sentence_transformers import SentenceTransformer
 from qdrant_client import QdrantClient
@@ -20,7 +19,6 @@ model = load_model()
 # 2) Connect to Qdrant (Local)
 # -------------------------------
 client = QdrantClient(path="qdrant_fraudapt_db")  # local DB folder
-
 COLLECTION_NAME = "fraudapt_cases"
 
 # -------------------------------
@@ -44,18 +42,9 @@ create_collection()
 # 4) Seed Sample Fraud Cases (only first time)
 # -------------------------------
 sample_data = [
-    {
-        "case": "Your bank account is blocked. Click this link to verify your identity.",
-        "label": "Phishing"
-    },
-    {
-        "case": "Congratulations! You won 10,00,000 INR. Fill your card details to claim.",
-        "label": "Lottery Scam"
-    },
-    {
-        "case": "Your Netflix subscription expired. Pay ₹499 immediately to avoid account suspension.",
-        "label": "Subscription Scam"
-    },
+    {"case": "Your bank account is blocked. Click this link to verify your identity.", "label": "Phishing"},
+    {"case": "Congratulations! You won 10,00,000 INR. Fill your card details to claim.", "label": "Lottery Scam"},
+    {"case": "Your Netflix subscription expired. Pay ₹499 immediately to avoid account suspension.", "label": "Subscription Scam"},
 ]
 
 def seed_sample_cases():
@@ -64,13 +53,11 @@ def seed_sample_cases():
         vectors = []
         payloads = []
         ids = []
-
         for item in sample_data:
             vec = model.encode(item["case"]).tolist()
             vectors.append(vec)
             payloads.append(item)
             ids.append(str(uuid.uuid4()))
-
         client.upsert(
             collection_name=COLLECTION_NAME,
             points=models.Batch(
@@ -87,13 +74,11 @@ seed_sample_cases()
 # -------------------------------
 def search_case(user_text):
     query_vec = model.encode(user_text).tolist()
-
     results = client.search(
         collection_name=COLLECTION_NAME,
         query_vector=query_vec,
         limit=3
     )
-
     return results
 
 # -------------------------------
@@ -131,5 +116,7 @@ if st.button("Analyze"):
             st.write(f"- **Similar Case:** {r.payload['case']}")
             st.write(f"- **Category:** {r.payload['label']}")
             st.write(f"- **Similarity Score:** {calculate_risk(r.score)}")
-st.markdown("---")
             st.markdown("---")
+
+st.info("Model: MiniLM-L6-v2 • Vector DB: Qdrant (Local)")
+
