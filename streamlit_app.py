@@ -19,31 +19,22 @@ model = load_model()
 # 2) Connect to Remote Qdrant
 # -------------------------------
 client = QdrantClient(
-    url="YOUR_CLUSTER_URL",      # Replace with your remote cluster URL
-    api_key="YOUR_API_KEY",      # Replace with your remote API key
+    url="YOUR_CLUSTER_URL",      # replace with your remote cluster URL
+    api_key="YOUR_API_KEY"       # replace with your remote API key
 )
 
 COLLECTION_NAME = "fraudapt_cases"
 
 # -------------------------------
-# 3) Create Collection If Not Exists
+# 3) Ensure Collection Exists
 # -------------------------------
-def create_collection():
-    try:
-        client.get_collection(COLLECTION_NAME)
-    except:
-        client.create_collection(
-            collection_name=COLLECTION_NAME,
-            vectors_config=models.VectorParams(
-                size=384,  # embedding size for MiniLM-L6-v2
-                distance=models.Distance.COSINE
-            )
-        )
-
-create_collection()
+try:
+    client.get_collection(COLLECTION_NAME)
+except Exception as e:
+    st.warning(f"Collection might already exist or cannot be created: {e}")
 
 # -------------------------------
-# 4) Seed Sample Fraud Cases (Remote-safe)
+# 4) Seed Sample Fraud Cases (if empty)
 # -------------------------------
 sample_data = [
     {"case": "Your bank account is blocked. Click this link to verify your identity.", "label": "Phishing"},
@@ -80,22 +71,21 @@ def seed_sample_cases():
 seed_sample_cases()
 
 # -------------------------------
-# 5) Search Function (Remote Qdrant)
+# 5) Search Function
 # -------------------------------
 def search_case(user_text):
     query_vec = model.encode(user_text).tolist()
+
     try:
-        results = client.search_points(
+        results = client.search(
             collection_name=COLLECTION_NAME,
             query_vector=query_vec,
             limit=3
-        ).result
+        )
     except Exception as e:
         st.error(f"Error searching Qdrant: {e}")
-        return []
-    
-    if not results:
-        return []
+        results = []
+
     return results
 
 # -------------------------------
@@ -114,9 +104,8 @@ def calculate_risk(similarity_score):
 # 7) Streamlit UI
 # -------------------------------
 st.set_page_config(page_title="FraudAPT Demo", layout="centered")
-
 st.title("🛡️ FraudAPT — Scam Message Detector")
-st.write("Paste any suspicious message and get instant fraud detection using AI + Vector Database (Remote Qdrant).")
+st.write("Paste any suspicious message and get instant fraud detection using AI + Vector Database.")
 
 user_input = st.text_area("Enter suspicious message:", height=150)
 
@@ -138,4 +127,3 @@ if st.button("Analyze"):
                 st.markdown("---")
 
 st.info("Model: MiniLM-L6-v2 • Vector DB: Qdrant (Remote)")
-
