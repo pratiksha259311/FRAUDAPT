@@ -1,5 +1,4 @@
 # FRAUDAPT
-Fraudapt: Semantic fraud detection engine using Qdrant vectors &amp; Streamlit for interactive demos
 import streamlit as st
 from sentence_transformers import SentenceTransformer
 from qdrant_client import QdrantClient
@@ -18,9 +17,12 @@ def load_model():
 model = load_model()
 
 # -------------------------------
-# 2) Connect to Qdrant (Local)
+# 2) Connect to Remote Qdrant
 # -------------------------------
-client = QdrantClient(path="qdrant_fraudapt_db")  # local DB folder
+client = QdrantClient(
+    url="https://34b8843a-5a75-4c89-a8d9-00429aa0e083.europe-west3-0.gcp.cloud.qdrant.io:6333",
+    api_key="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.oXYMkpMhCyvdsTlTg2RUjZVmuW57u1Vy_EV-gnNkJjk",
+)
 
 COLLECTION_NAME = "fraudapt_cases"
 
@@ -134,5 +136,5 @@ if st.button("Analyze"):
             st.write(f"- **Similarity Score:** {calculate_risk(r.score)}")
             st.markdown("---")
 
-st.info("Model: MiniLM-L6-v2 • Vector DB: Qdrant (Local) 
+st.info("Model: MiniLM-L6-v2 • Vector DB: Qdrant (Remote)")
 
