@@ -16,25 +16,30 @@ def load_model():
 model = load_model()
 
 # -------------------------------
-# 2) Connect to Remote Qdrant
+# 2) Connect to Qdrant (Remote)
 # -------------------------------
 client = QdrantClient(
-    url="YOUR_CLUSTER_URL",      # replace with your remote cluster URL
-    api_key="YOUR_API_KEY"       # replace with your remote API key
+    url="https://34b8843a-5a75-4c89-a8d9-00429aa0e083.europe-west3-0.gcp.cloud.qdrant.io",
+    api_key="34b8843a-5a75-4c89-a8d9-00429aa0e083"
 )
 
 COLLECTION_NAME = "fraudapt_cases"
 
 # -------------------------------
-# 3) Ensure Collection Exists
+# 3) Create Collection If Not Exists
 # -------------------------------
-try:
-    client.get_collection(COLLECTION_NAME)
-except Exception as e:
-    st.warning(f"Collection might already exist or cannot be created: {e}")
+existing_collections = [c.name for c in client.get_collections().result]
+if COLLECTION_NAME not in existing_collections:
+    client.create_collection(
+        collection_name=COLLECTION_NAME,
+        vectors_config=models.VectorParams(
+            size=384,
+            distance=models.Distance.COSINE
+        )
+    )
 
 # -------------------------------
-# 4) Seed Sample Fraud Cases (if empty)
+# 4) Seed Sample Fraud Cases (only first time)
 # -------------------------------
 sample_data = [
     {"case": "Your bank account is blocked. Click this link to verify your identity.", "label": "Phishing"},
@@ -44,11 +49,11 @@ sample_data = [
 
 def seed_sample_cases():
     try:
-        existing = client.count(COLLECTION_NAME).result.count
-    except:
-        existing = 0
+        count = client.count(collection_name=COLLECTION_NAME).result.count
+    except Exception:
+        count = 0
 
-    if existing == 0:
+    if count == 0:
         vectors = []
         payloads = []
         ids = []
@@ -84,8 +89,10 @@ def search_case(user_text):
         )
     except Exception as e:
         st.error(f"Error searching Qdrant: {e}")
-        results = []
+        return []
 
+    if not results:
+        st.warning("No similar cases found in the database.")
     return results
 
 # -------------------------------
@@ -104,6 +111,7 @@ def calculate_risk(similarity_score):
 # 7) Streamlit UI
 # -------------------------------
 st.set_page_config(page_title="FraudAPT Demo", layout="centered")
+
 st.title("🛡️ FraudAPT — Scam Message Detector")
 st.write("Paste any suspicious message and get instant fraud detection using AI + Vector Database.")
 
@@ -116,14 +124,11 @@ if st.button("Analyze"):
         st.subheader("🔍 Results:")
         results = search_case(user_input)
 
-        if not results:
-            st.info("No similar cases found in the database.")
-        else:
-            for i, r in enumerate(results):
-                st.write(f"**Match {i+1}:**")
-                st.write(f"- **Similar Case:** {r.payload['case']}")
-                st.write(f"- **Category:** {r.payload['label']}")
-                st.write(f"- **Similarity Score:** {calculate_risk(r.score)}")
-                st.markdown("---")
+        for i, r in enumerate(results):
+            st.write(f"**Match {i+1}:**")
+            st.write(f"- **Similar Case:** {r.payload['case']}")
+            st.write(f"- **Category:** {r.payload['label']}")
+            st.write(f"- **Similarity Score:** {calculate_risk(r.score)}")
+            st.markdown("---")
 
 st.info("Model: MiniLM-L6-v2 • Vector DB: Qdrant (Remote)")
