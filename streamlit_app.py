@@ -16,11 +16,11 @@ def load_model():
 model = load_model()
 
 # -------------------------------
-# 2) Connect to Remote Qdrant
+# 2) Connect to Qdrant (Remote)
 # -------------------------------
 client = QdrantClient(
     url="https://34b8843a-5a75-4c89-a8d9-00429aa0e083.europe-west3-0.gcp.cloud.qdrant.io:6333",
-    api_key="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.oXYMkpMhCyvdsTlTg2RUjZVmuW57u1Vy_EV-gnNkJjk",
+    api_key="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.oXYMkpMhCyvdsTlTg2RUjZVmuW57u1Vy_EV-gnNkJjk"
 )
 
 COLLECTION_NAME = "fraudapt_cases"
@@ -32,7 +32,7 @@ def create_collection():
     try:
         client.get_collection(COLLECTION_NAME)
     except:
-        client.create_collection(
+        client.recreate_collection(
             collection_name=COLLECTION_NAME,
             vectors_config=models.VectorParams(
                 size=384,  # embedding size for MiniLM-L6-v2
@@ -46,18 +46,9 @@ create_collection()
 # 4) Seed Sample Fraud Cases (only first time)
 # -------------------------------
 sample_data = [
-    {
-        "case": "Your bank account is blocked. Click this link to verify your identity.",
-        "label": "Phishing"
-    },
-    {
-        "case": "Congratulations! You won 10,00,000 INR. Fill your card details to claim.",
-        "label": "Lottery Scam"
-    },
-    {
-        "case": "Your Netflix subscription expired. Pay ₹499 immediately to avoid account suspension.",
-        "label": "Subscription Scam"
-    },
+    {"case": "Your bank account is blocked. Click this link to verify your identity.", "label": "Phishing"},
+    {"case": "Congratulations! You won 10,00,000 INR. Fill your card details to claim.", "label": "Lottery Scam"},
+    {"case": "Your Netflix subscription expired. Pay ₹499 immediately to avoid account suspension.", "label": "Subscription Scam"},
 ]
 
 def seed_sample_cases():
@@ -89,13 +80,11 @@ seed_sample_cases()
 # -------------------------------
 def search_case(user_text):
     query_vec = model.encode(user_text).tolist()
-
     results = client.search(
         collection_name=COLLECTION_NAME,
         query_vector=query_vec,
         limit=3
     )
-
     return results
 
 # -------------------------------
@@ -116,7 +105,7 @@ def calculate_risk(similarity_score):
 st.set_page_config(page_title="FraudAPT Demo", layout="centered")
 
 st.title("🛡️ FraudAPT — Scam Message Detector")
-st.write("Paste any suspicious message and get instant fraud detection using AI + Vector Database.")
+st.write("Paste any suspicious message and get instant fraud detection using AI + Vector Database (Remote Qdrant).")
 
 user_input = st.text_area("Enter suspicious message:", height=150)
 
@@ -125,7 +114,6 @@ if st.button("Analyze"):
         st.error("Please type something.")
     else:
         st.subheader("🔍 Results:")
-
         results = search_case(user_input)
 
         for i, r in enumerate(results):
@@ -136,5 +124,3 @@ if st.button("Analyze"):
             st.markdown("---")
 
 st.info("Model: MiniLM-L6-v2 • Vector DB: Qdrant (Remote)")
-
-
