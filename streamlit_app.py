@@ -19,8 +19,8 @@ model = load_model()
 # 2) Connect to Remote Qdrant
 # -------------------------------
 client = QdrantClient(
-    url="https://34b8843a-5a75-4c89-a8d9-00429aa0e083.europe-west3-0.gcp.cloud.qdrant.io:6333",
-    api_key="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.oXYMkpMhCyvdsTlTg2RUjZVmuW57u1Vy_EV-gnNkJjk"
+    url="YOUR_CLUSTER_URL",      # Replace with your remote cluster URL
+    api_key="YOUR_API_KEY",      # Replace with your remote API key
 )
 
 COLLECTION_NAME = "fraudapt_cases"
@@ -43,7 +43,7 @@ def create_collection():
 create_collection()
 
 # -------------------------------
-# 4) Seed Sample Fraud Cases (only first time)
+# 4) Seed Sample Fraud Cases (Remote-safe)
 # -------------------------------
 sample_data = [
     {"case": "Your bank account is blocked. Click this link to verify your identity.", "label": "Phishing"},
@@ -52,7 +52,11 @@ sample_data = [
 ]
 
 def seed_sample_cases():
-    existing = client.count(collection_name=COLLECTION_NAME).count
+    try:
+        existing = client.count(COLLECTION_NAME).result.count
+    except:
+        existing = 0
+
     if existing == 0:
         vectors = []
         payloads = []
@@ -76,16 +80,16 @@ def seed_sample_cases():
 seed_sample_cases()
 
 # -------------------------------
-# 5) Search Function
+# 5) Search Function (Remote Qdrant)
 # -------------------------------
 def search_case(user_text):
     query_vec = model.encode(user_text).tolist()
     try:
-        results = client.search(
+        results = client.search_points(
             collection_name=COLLECTION_NAME,
             query_vector=query_vec,
             limit=3
-        )
+        ).result
     except Exception as e:
         st.error(f"Error searching Qdrant: {e}")
         return []
@@ -98,8 +102,6 @@ def search_case(user_text):
 # 6) Risk Score Logic
 # -------------------------------
 def calculate_risk(similarity_score):
-    if similarity_score is None:
-        return "Unknown"
     risk = round(similarity_score * 100, 2)
     if risk < 40:
         return f"{risk}% (Low Risk)"
@@ -112,8 +114,9 @@ def calculate_risk(similarity_score):
 # 7) Streamlit UI
 # -------------------------------
 st.set_page_config(page_title="FraudAPT Demo", layout="centered")
+
 st.title("🛡️ FraudAPT — Scam Message Detector")
-st.write("Paste any suspicious message and get instant fraud detection using AI + Vector Database.")
+st.write("Paste any suspicious message and get instant fraud detection using AI + Vector Database (Remote Qdrant).")
 
 user_input = st.text_area("Enter suspicious message:", height=150)
 
@@ -125,7 +128,7 @@ if st.button("Analyze"):
         results = search_case(user_input)
 
         if not results:
-            st.warning("No similar cases found in the database.")
+            st.info("No similar cases found in the database.")
         else:
             for i, r in enumerate(results):
                 st.write(f"**Match {i+1}:**")
@@ -135,3 +138,4 @@ if st.button("Analyze"):
                 st.markdown("---")
 
 st.info("Model: MiniLM-L6-v2 • Vector DB: Qdrant (Remote)")
+
