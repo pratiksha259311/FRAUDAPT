@@ -16,7 +16,7 @@ def load_model():
 model = load_model()
 
 # -------------------------------
-# 2) Connect to Qdrant (Remote)
+# 2) Connect to Remote Qdrant
 # -------------------------------
 client = QdrantClient(
     url="https://34b8843a-5a75-4c89-a8d9-00429aa0e083.europe-west3-0.gcp.cloud.qdrant.io:6333",
@@ -32,7 +32,7 @@ def create_collection():
     try:
         client.get_collection(COLLECTION_NAME)
     except:
-        client.recreate_collection(
+        client.create_collection(
             collection_name=COLLECTION_NAME,
             vectors_config=models.VectorParams(
                 size=384,  # embedding size for MiniLM-L6-v2
@@ -80,17 +80,26 @@ seed_sample_cases()
 # -------------------------------
 def search_case(user_text):
     query_vec = model.encode(user_text).tolist()
-    results = client.search(
-        collection_name=COLLECTION_NAME,
-        query_vector=query_vec,
-        limit=3
-    )
+    try:
+        results = client.search(
+            collection_name=COLLECTION_NAME,
+            query_vector=query_vec,
+            limit=3
+        )
+    except Exception as e:
+        st.error(f"Error searching Qdrant: {e}")
+        return []
+    
+    if not results:
+        return []
     return results
 
 # -------------------------------
 # 6) Risk Score Logic
 # -------------------------------
 def calculate_risk(similarity_score):
+    if similarity_score is None:
+        return "Unknown"
     risk = round(similarity_score * 100, 2)
     if risk < 40:
         return f"{risk}% (Low Risk)"
@@ -103,9 +112,8 @@ def calculate_risk(similarity_score):
 # 7) Streamlit UI
 # -------------------------------
 st.set_page_config(page_title="FraudAPT Demo", layout="centered")
-
 st.title("🛡️ FraudAPT — Scam Message Detector")
-st.write("Paste any suspicious message and get instant fraud detection using AI + Vector Database (Remote Qdrant).")
+st.write("Paste any suspicious message and get instant fraud detection using AI + Vector Database.")
 
 user_input = st.text_area("Enter suspicious message:", height=150)
 
@@ -116,11 +124,14 @@ if st.button("Analyze"):
         st.subheader("🔍 Results:")
         results = search_case(user_input)
 
-        for i, r in enumerate(results):
-            st.write(f"**Match {i+1}:**")
-            st.write(f"- **Similar Case:** {r.payload['case']}")
-            st.write(f"- **Category:** {r.payload['label']}")
-            st.write(f"- **Similarity Score:** {calculate_risk(r.score)}")
-            st.markdown("---")
+        if not results:
+            st.warning("No similar cases found in the database.")
+        else:
+            for i, r in enumerate(results):
+                st.write(f"**Match {i+1}:**")
+                st.write(f"- **Similar Case:** {r.payload['case']}")
+                st.write(f"- **Category:** {r.payload['label']}")
+                st.write(f"- **Similarity Score:** {calculate_risk(r.score)}")
+                st.markdown("---")
 
 st.info("Model: MiniLM-L6-v2 • Vector DB: Qdrant (Remote)")
