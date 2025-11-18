@@ -16,19 +16,22 @@ def load_model():
 model = load_model()
 
 # -------------------------------
-# 2) Connect to Qdrant (Remote)
+# 2 & 3) Connect to Qdrant Remote & Create Collection
 # -------------------------------
 client = QdrantClient(
     url="https://34b8843a-5a75-4c89-a8d9-00429aa0e083.europe-west3-0.gcp.cloud.qdrant.io",
-    api_key="34b8843a-5a75-4c89-a8d9-00429aa0e083"
+    api_key="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.oXYMkpMhCyvdsTlTg2RUjZVmuW57u1Vy_EV-gnNkJjk"
 )
 
 COLLECTION_NAME = "fraudapt_cases"
 
-# -------------------------------
-# 3) Create Collection If Not Exists
-# -------------------------------
-existing_collections = [c.name for c in client.get_collections().result]
+# Check existing collections safely
+try:
+    existing_collections = [c.name for c in client.get_collections().result]
+except Exception as e:
+    st.warning(f"Could not fetch collections: {e}")
+    existing_collections = []
+
 if COLLECTION_NAME not in existing_collections:
     client.create_collection(
         collection_name=COLLECTION_NAME,
@@ -47,53 +50,48 @@ sample_data = [
     {"case": "Your Netflix subscription expired. Pay ₹499 immediately to avoid account suspension.", "label": "Subscription Scam"},
 ]
 
-def seed_sample_cases():
-    try:
-        count = client.count(collection_name=COLLECTION_NAME).result.count
-    except Exception:
-        count = 0
+try:
+    existing_count = client.count(COLLECTION_NAME).count
+except:
+    existing_count = 0
 
-    if count == 0:
-        vectors = []
-        payloads = []
-        ids = []
+if existing_count == 0:
+    vectors = []
+    payloads = []
+    ids = []
 
-        for item in sample_data:
-            vec = model.encode(item["case"]).tolist()
-            vectors.append(vec)
-            payloads.append(item)
-            ids.append(str(uuid.uuid4()))
+    for item in sample_data:
+        vec = model.encode(item["case"]).tolist()
+        vectors.append(vec)
+        payloads.append(item)
+        ids.append(str(uuid.uuid4()))
 
-        client.upsert(
-            collection_name=COLLECTION_NAME,
-            points=models.Batch(
-                ids=ids,
-                vectors=vectors,
-                payloads=payloads
-            )
+    client.upsert(
+        collection_name=COLLECTION_NAME,
+        points=models.Batch(
+            ids=ids,
+            vectors=vectors,
+            payloads=payloads
         )
-
-seed_sample_cases()
+    )
 
 # -------------------------------
 # 5) Search Function
 # -------------------------------
 def search_case(user_text):
     query_vec = model.encode(user_text).tolist()
-
     try:
         results = client.search(
             collection_name=COLLECTION_NAME,
             query_vector=query_vec,
             limit=3
         )
+        if not results:
+            st.info("No similar cases found in the database.")
+        return results
     except Exception as e:
         st.error(f"Error searching Qdrant: {e}")
         return []
-
-    if not results:
-        st.warning("No similar cases found in the database.")
-    return results
 
 # -------------------------------
 # 6) Risk Score Logic
@@ -123,7 +121,6 @@ if st.button("Analyze"):
     else:
         st.subheader("🔍 Results:")
         results = search_case(user_input)
-
         for i, r in enumerate(results):
             st.write(f"**Match {i+1}:**")
             st.write(f"- **Similar Case:** {r.payload['case']}")
@@ -132,3 +129,4 @@ if st.button("Analyze"):
             st.markdown("---")
 
 st.info("Model: MiniLM-L6-v2 • Vector DB: Qdrant (Remote)")
+
