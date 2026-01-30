@@ -1,135 +1,92 @@
-# FRAUDAPT
-import streamlit as st
-from sentence_transformers import SentenceTransformer
-from qdrant_client import QdrantClient
-from qdrant_client.http import models
-import pandas as pd
-import numpy as np
-import uuid
+🛡️ FRAUDAPT — Scam Message Risk Analyzer
+📌 Overview
 
-# -------------------------------
-# 1) Load Model
-# -------------------------------
-@st.cache_resource
-def load_model():
-    return SentenceTransformer("all-MiniLM-L6-v2")
+FRAUDAPT is an AI-powered demo application that helps assess the risk level of suspicious messages such as phishing texts, lottery scams, and fake subscription alerts.
 
-model = load_model()
+It uses semantic similarity instead of simple keywords, making it more flexible against new or slightly modified scam messages.
 
-# -------------------------------
-# 2) Connect to Qdrant (Remote)
-# -------------------------------
-client = QdrantClient(
-    url="https://34b8843a-5a75-4c89-a8d9-00429aa0e083.europe-west3-0.gcp.cloud.qdrant.io",
-    api_key="34b8843a-5a75-4c89-a8d9-00429aa0e083"
-)
+🚨 Problem Statement
 
-COLLECTION_NAME = "fraudapt_cases"
+Scam and phishing messages are increasing rapidly, but most users lack a quick way to judge whether a message is dangerous before clicking links or sharing sensitive information.
 
-# -------------------------------
-# 3) Create Collection If Not Exists
-# -------------------------------
-existing_collections = [c.name for c in client.get_collections().result]
-if COLLECTION_NAME not in existing_collections:
-    client.create_collection(
-        collection_name=COLLECTION_NAME,
-        vectors_config=models.VectorParams(
-            size=384,
-            distance=models.Distance.COSINE
-        )
-    )
+Traditional rule-based systems often fail when scam text is reworded.
 
-# -------------------------------
-# 4) Seed Sample Fraud Cases (only first time)
-# -------------------------------
-sample_data = [
-    {"case": "Your bank account is blocked. Click this link to verify your identity.", "label": "Phishing"},
-    {"case": "Congratulations! You won 10,00,000 INR. Fill your card details to claim.", "label": "Lottery Scam"},
-    {"case": "Your Netflix subscription expired. Pay ₹499 immediately to avoid account suspension.", "label": "Subscription Scam"},
-]
+💡 Solution
 
-def seed_sample_cases():
-    try:
-        count = client.count(collection_name=COLLECTION_NAME).result.count
-    except Exception:
-        count = 0
+FRAUDAPT compares a user-provided message against known scam patterns using vector embeddings and calculates a risk score based on semantic similarity.
 
-    if count == 0:
-        vectors = []
-        payloads = []
-        ids = []
+Instead of exact text matching, it understands meaning.
 
-        for item in sample_data:
-            vec = model.encode(item["case"]).tolist()
-            vectors.append(vec)
-            payloads.append(item)
-            ids.append(str(uuid.uuid4()))
+⚙️ How It Works
 
-        client.upsert(
-            collection_name=COLLECTION_NAME,
-            points=models.Batch(
-                ids=ids,
-                vectors=vectors,
-                payloads=payloads
-            )
-        )
+User pastes a suspicious message
 
-seed_sample_cases()
+Message is converted into embeddings using MiniLM-L6-v2
 
-# -------------------------------
-# 5) Search Function
-# -------------------------------
-def search_case(user_text):
-    query_vec = model.encode(user_text).tolist()
+Vectors are searched in a Qdrant vector database
 
-    try:
-        results = client.search(
-            collection_name=COLLECTION_NAME,
-            query_vector=query_vec,
-            limit=3
-        )
-    except Exception as e:
-        st.error(f"Error searching Qdrant: {e}")
-        return []
+Top similar scam cases are returned
 
-    if not results:
-        st.warning("No similar cases found in the database.")
-    return results
+A risk score is generated based on similarity
 
-# -------------------------------
-# 6) Risk Score Logic
-# -------------------------------
-def calculate_risk(similarity_score):
-    risk = round(similarity_score * 100, 2)
-    if risk < 40:
-        return f"{risk}% (Low Risk)"
-    elif risk < 75:
-        return f"{risk}% (Medium Risk)"
-    else:
-        return f"{risk}% (HIGH RISK ⚠️)"
+🧠 Tech Stack
 
-# -------------------------------
-# 7) Streamlit UI
-# -------------------------------
-st.set_page_config(page_title="FraudAPT Demo", layout="centered")
+Python
 
-st.title("🛡️ FraudAPT — Scam Message Detector")
-st.write("Paste any suspicious message and get instant fraud detection using AI + Vector Database.")
+Sentence Transformers (MiniLM-L6-v2)
 
-user_input = st.text_area("Enter suspicious message:", height=150)
+Qdrant (Vector Database – Remote)
 
-if st.button("Analyze"):
-    if not user_input.strip():
-        st.error("Please type something.")
-    else:
-        st.subheader("🔍 Results:")
-        results = search_case(user_input)
+Streamlit (UI)
 
-        for i, r in enumerate(results):
-            st.write(f"**Match {i+1}:**")
-            st.write(f"- **Similar Case:** {r.payload['case']}")
-            st.write(f"- **Category:** {r.payload['label']}")
-            st.write(f"- **Similarity Score:** {calculate_risk(r.score)}")
-            st.markdown("---")
+🎯 Features
 
-st.info("Model: MiniLM-L6-v2 • Vector DB: Qdrant (Remote)")
+Semantic scam detection (not keyword-based)
+
+Risk classification: Low / Medium / High
+
+Real-time similarity search
+
+Clean and simple Streamlit interface
+
+📊 Sample Use Cases
+
+Phishing SMS detection
+
+Lottery & prize scams
+
+Fake subscription renewal alerts
+
+Suspicious payment requests
+
+⚠️ Limitations
+
+Uses a small demo dataset for illustration
+
+Not a replacement for production-grade fraud detection systems
+
+Risk score is indicative, not definitive
+
+🚀 Future Improvements
+
+Larger labeled scam dataset
+
+Multilingual message support
+
+Threshold-based automated alerts
+
+Integration with SMS / email pipelines
+
+🔐 Security Note
+
+Sensitive credentials (API keys, URLs) are managed via environment variables and are not hard-coded in production setups.
+
+🧪 Demo
+
+This project is intended for educational and demonstration purposes.
+
+Paste a message → analyze similarity → understand fraud risk.
+
+👤 Author
+
+Built with ❤️ to explore applied NLP, vector databases, and real-world fraud detection concepts.
